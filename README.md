@@ -2,10 +2,10 @@
 
 A single Next.js application with two experiences that share the TWO RR brand:
 
-- **Public website**: home, about, digital menu, product options, cart, checkout, order status, gallery and visit/contact pages.
+- **Public website**: a scroll-driven **3D café experience** on the home page, plus about, digital menu, product options, cart, checkout, order status, gallery and visit/contact pages.
 - **Staff system** (`/admin`): dashboard, touch-friendly POS, orders, products, categories, inventory, reports, gallery, users, settings and thermal-receipt printing. Owners and cashiers each see only what their role allows (see [Users & roles](#users--roles)).
 
-Stack: Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 · Drizzle ORM · PostgreSQL · Vercel Blob.
+Stack: Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 · Three.js (+ CC0 Poly Haven assets) · Drizzle ORM · PostgreSQL · Vercel Blob.
 
 ---
 
@@ -33,6 +33,7 @@ The sample menu exists so you can try everything immediately. It's ordinary data
 | `npm run db:seed` | Create settings row + owner account if missing (idempotent) |
 | `npm run db:generate` | Generate a new migration after changing `src/db/schema.ts` |
 | `npm run test:integrity` | Order-engine tests on a throwaway DB (pricing, duplicates, stock races, payments, role rules) |
+| `npm run assets:3d` | Re-download + optimise the CC0 3D assets into `public/3d/` |
 | `npm run lint` / `typecheck` | ESLint / TypeScript |
 
 ---
@@ -67,6 +68,33 @@ Nothing permanent is stored on the Vercel filesystem: data lives in Postgres and
 
 ### Branding
 The supplied `logo.png` is the source of truth. `public/brand/` holds web versions of the **real logo**: the opaque gray background is trimmed with a circular mask, and WebP sizes are exported. The palette was sampled from the logo: espresso `#1B1A15`, walnut `#5C3919`, antique gold `#BD904D`, parchment cream `#E9DCC3`, copper bean `#8F5726`. The type follows the logo's lettering: Cormorant Garamond (display), Cinzel (tracked capitals, like "C O F F E E") and Manrope (UI). The motifs also come from the logo: clock ticks, the walnut panel with its back-lit S-curve, gold rules with a coffee bean, and clock-hand icons. Tokens live in `src/app/globals.css`. Owners can replace the logo in Settings.
+
+### 3D café experience (public site)
+The home page is "one turn of the TWO RR clock": scrolling walks the camera through a real-time WebGL café built procedurally in `src/components/cafe3d/`. Nothing is downloaded except the real TWO RR logo, which hangs on the wall as the clock.
+
+| Scroll | Scene | Content |
+| --- | --- | --- |
+| 12 | The TWO RR clock on the café wall | Hero: name, tagline, Explore Menu / Discover |
+| 3 | Close-up of a steaming cup with latte art | "Good Coffee." + your real menu categories |
+| 6 | Coffee beans swirl around the cup | "Great Moments." + your enabled order types |
+| 9 | The menu board | Featured products and prices from the database (drawn on the board too) |
+| 12 | The whole café | Address/hours from Settings, Order Now |
+
+- **One timeline** (`story.ts`) drives both the camera path and the HTML chapters. Native scrolling is never hijacked; a clock dial shows progress and jumps between chapters, and "Skip intro" goes straight to the content.
+- **Chapters are real HTML** (headings, links, buttons), so they work for screen readers and search engines. Tabbing into a chapter's link scrolls the story to it.
+- **Performance:** the first screen is server-rendered text plus the real logo. Three.js is a separate chunk, loaded only on pages that use it, after the page is idle; the canvas fades in once textures and shaders are ready. Rendering pauses off-screen and in hidden tabs, drops to about 30fps when only the steam is moving, and lowers resolution and shadows automatically if frames run slow. Phones get a lighter scene.
+- **Fallbacks:** `prefers-reduced-motion` gets a static stacked layout (CSS-driven, correct even before JavaScript runs); no WebGL or data-saver keeps the scroll story over the static logo poster.
+- **Elsewhere:** the About page opens with a shorter 3D move around the clock; menu cards tilt in 3D under the pointer and settle into place as you scroll (CSS scroll-driven animations where supported).
+- To change the story, edit `CAFE_CAMERA_PATH` / `CHAPTERS` in `src/components/cafe3d/story.ts`; scene layout lives in `scene/createCafeScene.ts`.
+
+**Photoreal assets.** The café uses real-world assets from [Poly Haven](https://polyhaven.com), all **CC0** (public domain: commercial use, no attribution required, redistribution allowed). Credits are listed in `public/3d/CREDITS.md`.
+- `comfy_cafe`: an HDRI photographed inside a real café. It supplies the lighting and every reflection.
+- Scanned PBR surfaces (colour + normal + AO/roughness): `brown_brick_02` wall, `herringbone_parquet` floor, `dark_wood` counter.
+- Photoscanned props: croissant, carrot cake, strawberry chocolate cake, bar stools, potted plant.
+- Run `npm run assets:3d` to re-download and re-optimise them (textures → WebP, models → meshopt-compressed `.glb`). About 6.4 MB in total; phones load about 3.6 MB (1k textures, no cakes or plant).
+- The cup, saucer, latte art, beans, steam, espresso machine, grinder, pendants and menu board stay generated in code, so they match the TWO RR brand exactly.
+
+**Rendering.** Desktop uses AgX filmic tone mapping, ground-truth ambient occlusion (GTAO), depth of field that focuses on what the camera looks at (shallow on the cup close-ups), bloom on the light bulbs, a vignette, and 4× MSAA. Phones render directly. If frames run slow, quality steps down automatically in this order: AO, depth of field, resolution, shadows. Add `?hq` to the URL to keep maximum quality regardless (for previewing on a strong machine).
 
 ### Money
 All amounts are **integer centavos** (`₱1.00 = 100`). Typed amounts are parsed from strings (`parsePesoToCents`), so floating-point errors can't occur. Change is calculated only from valid amounts that cover the total, so the UI never shows NaN or negative change.
@@ -130,7 +158,7 @@ src/
     admin/(panel)/     dashboard, orders, products, categories, inventory, reports, gallery, users, settings, account
     admin/(pos)/pos/   full-screen POS
     api/cart/quote/    live cart re-pricing
-  components/          branding, navigation, hero, menu, products, cart, checkout, orders, pos, receipt, dashboard, forms, charts, gallery, ui
+  components/          cafe3d (3D scroll story), branding, navigation, menu, products, cart, checkout, orders, pos, receipt, dashboard, forms, charts, gallery, ui
   db/                  Drizzle schema + connection (Postgres or local PGlite)
   lib/                 money, pricing, formatting, validation (shared client/server)
   server/              data access, order engine, reports, auth, storage, Server Actions
@@ -143,5 +171,9 @@ scripts/               migrate, seed, integrity tests
 
 The site never invents business facts. These show neutral placeholders until they're filled in under **Admin → Settings / Gallery / Products**:
 address, opening hours, phone, email, map link, social links, the about story and mission, gallery photos, and product photos (products without a photo show a branded placeholder, never stock imagery).
-#   T W O - R R  
+#   T W O - R R 
  
+ 
+
+
+
