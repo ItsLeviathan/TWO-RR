@@ -13,15 +13,16 @@ Stack: Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tail
 
 ```bash
 npm install
-npm run db:setup   # creates the local database, owner account and a SAMPLE menu
-npm run dev        # http://localhost:3000  ·  owner area: http://localhost:3000/admin
+cp .env.example .env.local   # then set AUTH_SECRET, OWNER_EMAIL and OWNER_PASSWORD
+npm run db:setup             # creates the local database, owner account and a SAMPLE menu
+npm run dev                  # http://localhost:3000  ·  staff area: http://localhost:3000/admin
 ```
 
-Local development needs **no database server**. When `DATABASE_URL` is empty, the app uses an embedded Postgres (PGlite) stored in `.data/pglite/`. The owner login comes from `OWNER_EMAIL` / `OWNER_PASSWORD` in `.env.local`.
+Local development needs **no database server**. When `DATABASE_URL` is empty, the app uses an embedded Postgres (PGlite) stored in `.data/pglite/`. You sign in with the `OWNER_EMAIL` / `OWNER_PASSWORD` from `.env.local`.
 
 > Stop `npm run dev` before running `db:*` scripts against the local database. The embedded database allows only one process at a time.
 
-The sample menu exists so you can try everything immediately. It's ordinary data, so edit or delete it under **Admin → Products / Categories**. To start completely empty, run `npm run db:migrate && npm run db:seed` (no `--sample`).
+The sample menu exists so you can try everything immediately. It's ordinary data, so edit or delete it under **Admin → Products / Categories**. To start completely empty, delete `.data/pglite/` and run `npm run db:migrate && npm run db:seed` (no `--sample`).
 
 ### Scripts
 
@@ -45,7 +46,7 @@ See `.env.example`. Never commit `.env.local`.
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | **Production** | Postgres connection string. Use the **pooled** URL (Neon / Vercel Postgres / Supabase). |
-| `AUTH_SECRET` | **Yes** | 32+ random characters; signs owner sessions. `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `AUTH_SECRET` | **Yes** | 32+ random characters; signs staff sessions. `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
 | `OWNER_EMAIL`, `OWNER_PASSWORD`, `OWNER_NAME` | First deploy | First owner account, created by the seed **only if that email doesn't exist**. Change the password afterwards in Admin → My account; add cashiers in Admin → Users. |
 | `BLOB_READ_WRITE_TOKEN` | For uploads | Vercel Blob token. Without it, image upload buttons are disabled and images can be added by `https://` link. |
 
@@ -70,9 +71,9 @@ Nothing permanent is stored on the Vercel filesystem: data lives in Postgres and
 The supplied `logo.png` is the source of truth. `public/brand/` holds web versions of the **real logo**: the opaque gray background is trimmed with a circular mask, and WebP sizes are exported. The palette was sampled from the logo: espresso `#1B1A15`, walnut `#5C3919`, antique gold `#BD904D`, parchment cream `#E9DCC3`, copper bean `#8F5726`. The type follows the logo's lettering: Cormorant Garamond (display), Cinzel (tracked capitals, like "C O F F E E") and Manrope (UI). The motifs also come from the logo: clock ticks, the walnut panel with its back-lit S-curve, gold rules with a coffee bean, and clock-hand icons. Tokens live in `src/app/globals.css`. Owners can replace the logo in Settings.
 
 ### 3D café experience (public site)
-The home page is "one turn of the TWO RR clock": scrolling walks the camera through a real-time WebGL café built procedurally in `src/components/cafe3d/`. Nothing is downloaded except the real TWO RR logo, which hangs on the wall as the clock.
+The home page is "one turn of the TWO RR clock": scrolling walks the camera through a real-time WebGL café built in `src/components/cafe3d/`. The real TWO RR logo hangs on the wall as the clock.
 
-| Scroll | Scene | Content |
+| Clock | Scene | Content |
 | --- | --- | --- |
 | 12 | The TWO RR clock on the café wall | Hero: name, tagline, Explore Menu / Discover |
 | 3 | Close-up of a steaming cup with latte art | "Good Coffee." + your real menu categories |
@@ -135,7 +136,7 @@ The owner manages accounts in **Admin → Users**: add, edit, disable, reset pas
 - Cashiers sign in at the same `/admin/login` and land on the POS.
 
 ### Security
-- Owner sessions are signed, httpOnly, SameSite cookies (`jose`); passwords are hashed with bcrypt (cost 12).
+- Staff sessions are signed, httpOnly, SameSite cookies (`jose`); passwords are hashed with bcrypt (cost 12).
 - `src/proxy.ts` redirects unauthenticated `/admin/*` requests. **Every admin page and every admin Server Action re-checks the session, account status and role permission on the server** (`requirePage` / `requirePermission`). Server Actions also get Next.js's built-in origin (CSRF) check.
 - All input is validated server-side with Zod. Errors shown to users never include internal details.
 - Sign-in attempts are rate-limited per server instance. For multi-region traffic, back this with a shared store (e.g. Upstash Redis).
@@ -154,7 +155,7 @@ Reports use real records only. Sales are paid, non-cancelled orders, grouped by 
 src/
   app/
     (site)/            public pages: /, about, menu, menu/[slug], cart, checkout, order/[id], gallery, contact
-    admin/login/       owner sign-in
+    admin/login/       staff sign-in (owners and cashiers)
     admin/(panel)/     dashboard, orders, products, categories, inventory, reports, gallery, users, settings, account
     admin/(pos)/pos/   full-screen POS
     api/cart/quote/    live cart re-pricing
@@ -171,9 +172,3 @@ scripts/               migrate, seed, integrity tests
 
 The site never invents business facts. These show neutral placeholders until they're filled in under **Admin → Settings / Gallery / Products**:
 address, opening hours, phone, email, map link, social links, the about story and mission, gallery photos, and product photos (products without a photo show a branded placeholder, never stock imagery).
-#   T W O - R R 
- 
- 
-
-
-
