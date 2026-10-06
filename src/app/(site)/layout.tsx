@@ -2,6 +2,7 @@ import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { SiteFooter } from "@/components/navigation/SiteFooter";
 import { SiteHeader } from "@/components/navigation/SiteHeader";
+import { SmoothScroll } from "@/components/ui/SmoothScroll";
 import { ToastProvider } from "@/components/ui/Toast";
 import { getSettings } from "@/server/settings";
 
@@ -26,6 +27,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         </main>
         <SiteFooter settings={settings} />
         <CartDrawer />
+        <SmoothScroll />
       </CartProvider>
     </ToastProvider>
   );

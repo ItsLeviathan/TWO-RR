@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Bean, ClockMark } from "@/components/branding/Ornaments";
 import { SectionHeading } from "@/components/branding/SectionHeading";
-import { CafeStory } from "@/components/cafe3d/CafeStory";
+import { CafeStory } from "@/components/cafe-story/CafeStory";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Reveal } from "@/components/ui/Reveal";
 import { isOptimizableImage } from "@/lib/utils";
@@ -33,7 +33,6 @@ export default async function HomePage() {
       <CafeStory
         businessName={settings.businessName}
         tagline={settings.tagline}
-        logoUrl={settings.logoUrl}
         orderingEnabled={settings.onlineOrderingEnabled}
         categories={menu.filter((c) => c.products.length > 0).map((c) => ({ name: c.name, slug: c.slug }))}
         orderTypeLabels={settings.onlineOrderingEnabled ? settings.orderTypes.map((t) => ORDER_TYPE_LABEL[t]) : []}

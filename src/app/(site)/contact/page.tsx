@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { SectionHeading } from "@/components/branding/SectionHeading";
+import { mapEmbedUrl } from "@/lib/maps";
 import { getSettings } from "@/server/settings";
 
 export const metadata: Metadata = { title: "Visit & Contact" };
@@ -18,6 +19,7 @@ export default async function ContactPage() {
     { label: "Instagram", href: s.instagramUrl },
     { label: "TikTok", href: s.tiktokUrl },
   ].filter((x): x is { label: string; href: string } => Boolean(x.href));
+  const mapSrc = mapEmbedUrl(s.mapUrl, s.address);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
@@ -50,6 +52,33 @@ export default async function ContactPage() {
             </li>
           ))}
         </ul>
+      )}
+      {mapSrc && (
+        <section className="mt-10" aria-labelledby="map-heading">
+          <h2 id="map-heading" className="eyebrow text-gold-700">
+            On the map
+          </h2>
+          <div className="card mt-4 overflow-hidden p-0">
+            <iframe
+              src={mapSrc}
+              title={`Map showing the location of ${s.businessName}`}
+              className="block h-[22rem] w-full border-0 sm:h-[28rem]"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
+          {s.mapUrl && (
+            <a
+              href={s.mapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline mt-4 inline-flex"
+            >
+              <MapPin className="h-4 w-4" aria-hidden /> Open in Google Maps
+            </a>
+          )}
+        </section>
       )}
       {socials.length > 0 && (
         <div className="mt-10">

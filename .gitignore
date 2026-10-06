@@ -43,3 +43,6 @@ next-env.d.ts
 
 # local embedded database
 /.data
+
+# images uploaded in local development (production uses Vercel Blob)
+/public/uploads

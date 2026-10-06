@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Bean, GoldRule } from "@/components/branding/Ornaments";
-import { AboutHero3D } from "@/components/cafe3d/AboutHero3D";
+import { AboutHero } from "@/components/cafe-story/AboutHero";
 import { SectionHeading } from "@/components/branding/SectionHeading";
 import { Reveal } from "@/components/ui/Reveal";
 import { aboutContent } from "@/lib/content";
@@ -16,10 +16,10 @@ export default async function AboutPage() {
 
   return (
     <>
-      <AboutHero3D logoUrl={settings.logoUrl} businessName={settings.businessName}>
+      <AboutHero>
         <SectionHeading as="h1" tone="dark" eyebrow={`About ${settings.businessName}`} title={about.headline} />
         <p className="mt-6 max-w-xl font-display text-2xl italic text-gold-300">{settings.tagline}</p>
-      </AboutHero3D>
+      </AboutHero>
 
       <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:py-28" aria-labelledby="story-title">
         <Reveal>

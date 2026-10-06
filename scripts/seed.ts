@@ -2,6 +2,7 @@
  * Idempotent seed.
  *   npm run db:seed            → business settings row + owner account (from OWNER_EMAIL / OWNER_PASSWORD)
  *   npm run db:seed -- --sample → also adds a SAMPLE menu, only if the menu is empty.
+ *   SEED_SAMPLE_MENU=1             → same as --sample (set it in Vercel to fill the menu on the first deploy).
  *
  * The sample menu exists so the site and POS can be tried immediately. It is ordinary data:
  * the owner edits or deletes it from Admin → Products.
@@ -10,11 +11,11 @@ import { config } from "dotenv";
 config({ path: [".env.local", ".env"], quiet: true });
 
 import bcrypt from "bcryptjs";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { createDb } from "../src/db/client";
 import * as schema from "../src/db/schema";
 
-const withSample = process.argv.includes("--sample");
+const withSample = process.argv.includes("--sample") || process.env.SEED_SAMPLE_MENU === "1";
 
 type SampleProduct = {
   name: string;
@@ -34,6 +35,8 @@ const coffeeAddons = [
   { name: "Extra Shot", price: 30 },
   { name: "Oat Milk", price: 20 },
 ];
+const whippedCream = { name: "Extra Whipped Cream", price: 15 };
+const frappeAddons = [coffeeAddons[0]!, whippedCream];
 
 const SAMPLE_MENU: { category: string; products: SampleProduct[] }[] = [
   {
@@ -43,6 +46,20 @@ const SAMPLE_MENU: { category: string; products: SampleProduct[] }[] = [
       { name: "Americano", description: "Espresso lengthened with water.", price: 100, options: sizes(20), addons: [coffeeAddons[0]!] },
       { name: "Caffè Latte", description: "Espresso with steamed milk.", price: 120, featured: true, options: sizes(20), addons: coffeeAddons },
       { name: "Caramel Macchiato", description: "Milk, vanilla, espresso and caramel drizzle.", price: 140, options: sizes(20), addons: coffeeAddons },
+      {
+        name: "Espresso",
+        description: "A short, intense shot with a golden crema.",
+        price: 90,
+        options: [
+          { group: "Shot", name: "Single", delta: 0 },
+          { group: "Shot", name: "Double", delta: 30 },
+        ],
+      },
+      { name: "Cappuccino", description: "Espresso under a deep cap of velvety milk foam.", price: 120, options: sizes(20), addons: coffeeAddons },
+      { name: "Flat White", description: "A double shot with a thin layer of silky microfoam.", price: 130, options: sizes(20), addons: coffeeAddons },
+      { name: "Café Mocha", description: "Espresso, rich chocolate and steamed milk.", price: 140, featured: true, options: sizes(20), addons: coffeeAddons },
+      { name: "Vanilla Latte", description: "Espresso and steamed milk with a touch of vanilla.", price: 130, options: sizes(20), addons: coffeeAddons },
+      { name: "Cold Brew", description: "Steeped slow and cold for a smooth, low-acid coffee over ice.", price: 130, options: sizes(20), addons: [coffeeAddons[1]!] },
     ],
   },
   {
@@ -50,6 +67,16 @@ const SAMPLE_MENU: { category: string; products: SampleProduct[] }[] = [
     products: [
       { name: "Matcha Latte", description: "Matcha whisked with milk.", price: 140, featured: true, options: sizes(20), addons: [coffeeAddons[1]!] },
       { name: "Chocolate", description: "Rich chocolate with milk, served hot or iced.", price: 120, options: sizes(20) },
+    ],
+  },
+  {
+    category: "Frappé",
+    products: [
+      { name: "Caramel Frappe", description: "Coffee blended with milk and ice, topped with whipped cream and caramel drizzle.", price: 150, options: sizes(20), addons: frappeAddons },
+      { name: "Mocha Frappe", description: "Coffee, chocolate and milk blended with ice, finished with whipped cream.", price: 155, options: sizes(20), addons: frappeAddons },
+      { name: "Java Chip Frappe", description: "Mocha blended with chocolate chips, under whipped cream and more chips.", price: 165, featured: true, options: sizes(20), addons: frappeAddons },
+      { name: "Matcha Frappe", description: "Matcha blended with milk and ice, crowned with whipped cream.", price: 160, options: sizes(20), addons: [whippedCream] },
+      { name: "Cookies & Cream Frappe", description: "Crushed chocolate cookies blended with milk and ice. Coffee-free.", price: 160, options: sizes(20), addons: [whippedCream] },
     ],
   },
   {
@@ -64,6 +91,9 @@ const SAMPLE_MENU: { category: string; products: SampleProduct[] }[] = [
     products: [{ name: "Ham & Cheese Sandwich", description: "Ham and cheese on toasted bread.", price: 150, stock: 8 }],
   },
 ];
+
+/** Sample product photos live in public/menu/<slug>.webp (see public/menu/CREDITS.md). */
+const sampleImage = (productSlug: string) => `/menu/${productSlug}.webp`;
 
 const slug = (s: string) =>
   s
@@ -105,6 +135,18 @@ async function main() {
       const [{ n }] = await db.select({ n: count() }).from(schema.categories);
       if (n > 0) {
         console.log("• Menu already has categories — sample menu skipped");
+        // Give sample products that still have no photo their stock photo; never overwrites the owner's images.
+        let filled = 0;
+        for (const p of SAMPLE_MENU.flatMap((g) => g.products)) {
+          const s = slug(p.name);
+          const updated = await db
+            .update(schema.products)
+            .set({ imageUrl: sampleImage(s) })
+            .where(and(eq(schema.products.slug, s), isNull(schema.products.imageUrl)))
+            .returning({ id: schema.products.id });
+          filled += updated.length;
+        }
+        if (filled > 0) console.log(`✓ Added photos to ${filled} sample product(s)`);
       } else {
         for (const [ci, group] of SAMPLE_MENU.entries()) {
           const [cat] = await db
@@ -119,6 +161,7 @@ async function main() {
                 name: p.name,
                 slug: slug(p.name),
                 description: p.description,
+                imageUrl: sampleImage(slug(p.name)),
                 priceCents: p.price * 100,
                 isFeatured: p.featured ?? false,
                 trackInventory: p.stock !== undefined,

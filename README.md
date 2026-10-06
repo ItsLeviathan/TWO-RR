@@ -2,10 +2,10 @@
 
 A single Next.js application with two experiences that share the TWO RR brand:
 
-- **Public website**: a scroll-driven **3D café experience** on the home page, plus about, digital menu, product options, cart, checkout, order status, gallery and visit/contact pages.
+- **Public website**: a scroll-driven **café film** on the home page (real footage, scrubbed by scroll), plus about, digital menu, product options, cart, checkout, order status, gallery and visit/contact pages.
 - **Staff system** (`/admin`): dashboard, touch-friendly POS, orders, products, categories, inventory, reports, gallery, users, settings and thermal-receipt printing. Owners and cashiers each see only what their role allows (see [Users & roles](#users--roles)).
 
-Stack: Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 · Three.js (+ CC0 Poly Haven assets) · Drizzle ORM · PostgreSQL · Vercel Blob.
+Stack: Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 · Drizzle ORM · PostgreSQL · Vercel Blob.
 
 ---
 
@@ -34,7 +34,6 @@ The sample menu exists so you can try everything immediately. It's ordinary data
 | `npm run db:seed` | Create settings row + owner account if missing (idempotent) |
 | `npm run db:generate` | Generate a new migration after changing `src/db/schema.ts` |
 | `npm run test:integrity` | Order-engine tests on a throwaway DB (pricing, duplicates, stock races, payments, role rules) |
-| `npm run assets:3d` | Re-download + optimise the CC0 3D assets into `public/3d/` |
 | `npm run lint` / `typecheck` | ESLint / TypeScript |
 
 ---
@@ -49,6 +48,7 @@ See `.env.example`. Never commit `.env.local`.
 | `AUTH_SECRET` | **Yes** | 32+ random characters; signs staff sessions. `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
 | `OWNER_EMAIL`, `OWNER_PASSWORD`, `OWNER_NAME` | First deploy | First owner account, created by the seed **only if that email doesn't exist**. Change the password afterwards in Admin → My account; add cashiers in Admin → Users. |
 | `BLOB_READ_WRITE_TOKEN` | For uploads | Vercel Blob token. Without it, image upload buttons are disabled and images can be added by `https://` link. |
+| `SEED_SAMPLE_MENU` | Optional | Set to `1` to fill an **empty** menu with the sample menu (coffee, frappés, pastries, food, with photos) on deploy. Never touches a menu that already has categories. |
 
 ---
 
@@ -70,32 +70,25 @@ Nothing permanent is stored on the Vercel filesystem: data lives in Postgres and
 ### Branding
 The supplied `logo.png` is the source of truth. `public/brand/` holds web versions of the **real logo**: the opaque gray background is trimmed with a circular mask, and WebP sizes are exported. The palette was sampled from the logo: espresso `#1B1A15`, walnut `#5C3919`, antique gold `#BD904D`, parchment cream `#E9DCC3`, copper bean `#8F5726`. The type follows the logo's lettering: Cormorant Garamond (display), Cinzel (tracked capitals, like "C O F F E E") and Manrope (UI). The motifs also come from the logo: clock ticks, the walnut panel with its back-lit S-curve, gold rules with a coffee bean, and clock-hand icons. Tokens live in `src/app/globals.css`. Owners can replace the logo in Settings.
 
-### 3D café experience (public site)
-The home page is "one turn of the TWO RR clock": scrolling walks the camera through a real-time WebGL café built in `src/components/cafe3d/`. The real TWO RR logo hangs on the wall as the clock.
+### Scroll-driven coffee story (public site)
+The home page makes one cup of coffee in front of you as you scroll. Real footage of each step is scrubbed frame by frame, and between steps the camera moves the way a real one would, hiding each cut inside the motion: it pushes into the beans and lands on the grinder, whips along the bar, tilts down after the coffee, pushes into the glass and lands in the latte. Motion blur follows the camera (radial for a push, streaked for a whip, with a touch of roll), a soft exposure lift marks the peak of each move, and the blur exists only while moving, so at rest the footage is pin-sharp. Built in `src/components/cafe-story/`.
 
-| Clock | Scene | Content |
-| --- | --- | --- |
-| 12 | The TWO RR clock on the café wall | Hero: name, tagline, Explore Menu / Discover |
-| 3 | Close-up of a steaming cup with latte art | "Good Coffee." + your real menu categories |
-| 6 | Coffee beans swirl around the cup | "Great Moments." + your enabled order types |
-| 9 | The menu board | Featured products and prices from the database (drawn on the board too) |
-| 12 | The whole café | Address/hours from Settings, Order Now |
+| Step | Footage (scroll drives it) | Camera move into the next | Content |
+| --- | --- | --- | --- |
+| The Beans | A brass scoop pouring beans over a linen bag | push into the beans | Hero: name, tagline, Explore Menu / Discover |
+| The Grind | The grinder dosing fresh grounds into the portafilter | whip pan left | Your real menu categories |
+| The Tamp | Tamping, then locking the portafilter into the machine | whip tilt down | Your enabled order types |
+| The Pull | The espresso shot filling the glass | push into the glass | "Good Coffee." + Our story |
+| The Pour | Latte art drawing itself | whip tilt up | Featured products and prices from the database |
+| Your Cup | The finished coffee, steaming | | Address/hours from Settings, Order Now |
 
-- **One timeline** (`story.ts`) drives both the camera path and the HTML chapters. Native scrolling is never hijacked; a clock dial shows progress and jumps between chapters, and "Skip intro" goes straight to the content.
+- **The renderer** (`filmStage.ts`) is one hand-written WebGL shader on a full-screen quad, no 3D library: frame blending, motion blur and grading run on the GPU, and textures are uploaded only when the frame changes. Without WebGL it falls back to a 2D crossfade; if the GPU drops the context, the poster frames take over. To change a move, edit `move` (and `diveAt` / `landAt` for pushes) on a chapter in `story.ts`.
+- **One timeline** (`story.ts`) drives both the film and the HTML chapters. Native scrolling is never hijacked. In the corner, a gold pour runs down a rail of coffee beans (one per chapter, click to jump; the current one shows its name) into a cup that fills as you scroll and steams at the end. "Skip intro" goes straight to the content.
+- **How the film works** (`filmStage.ts`): each clip is pre-cut (from 4K masters where available) into 40 AVIF frames, drawn on a canvas at the frame matching the scroll position, blending neighbouring frames so motion stays continuous. Each visitor downloads only the size their screen needs: 1920×1080 for large or high-density screens, 1280×720 for smaller ones, 1080×1920 portrait crops for phones. Only the frames just ahead of the visitor are fetched (about 0.5 MB before scrolling; 6–8 MB for the whole story), and only a small window around the current frame is decoded, off the main thread, so memory stays low and scrubbing stays smooth.
 - **Chapters are real HTML** (headings, links, buttons), so they work for screen readers and search engines. Tabbing into a chapter's link scrolls the story to it.
-- **Performance:** the first screen is server-rendered text plus the real logo. Three.js is a separate chunk, loaded only on pages that use it, after the page is idle; the canvas fades in once textures and shaders are ready. Rendering pauses off-screen and in hidden tabs, drops to about 30fps when only the steam is moving, and lowers resolution and shadows automatically if frames run slow. Phones get a lighter scene.
-- **Fallbacks:** `prefers-reduced-motion` gets a static stacked layout (CSS-driven, correct even before JavaScript runs); no WebGL or data-saver keeps the scroll story over the static logo poster.
-- **Elsewhere:** the About page opens with a shorter 3D move around the clock; menu cards tilt in 3D under the pointer and settle into place as you scroll (CSS scroll-driven animations where supported).
-- To change the story, edit `CAFE_CAMERA_PATH` / `CHAPTERS` in `src/components/cafe3d/story.ts`; scene layout lives in `scene/createCafeScene.ts`.
-
-**Photoreal assets.** The café uses real-world assets from [Poly Haven](https://polyhaven.com), all **CC0** (public domain: commercial use, no attribution required, redistribution allowed). Credits are listed in `public/3d/CREDITS.md`.
-- `comfy_cafe`: an HDRI photographed inside a real café. It supplies the lighting and every reflection.
-- Scanned PBR surfaces (colour + normal + AO/roughness): `brown_brick_02` wall, `herringbone_parquet` floor, `dark_wood` counter.
-- Photoscanned props: croissant, carrot cake, strawberry chocolate cake, bar stools, potted plant.
-- Run `npm run assets:3d` to re-download and re-optimise them (textures → WebP, models → meshopt-compressed `.glb`). About 6.4 MB in total; phones load about 3.6 MB (1k textures, no cakes or plant).
-- The cup, saucer, latte art, beans, steam, espresso machine, grinder, pendants and menu board stay generated in code, so they match the TWO RR brand exactly.
-
-**Rendering.** Desktop uses AgX filmic tone mapping, ground-truth ambient occlusion (GTAO), depth of field that focuses on what the camera looks at (shallow on the cup close-ups), bloom on the light bulbs, a vignette, and 4× MSAA. Phones render directly. If frames run slow, quality steps down automatically in this order: AO, depth of field, resolution, shadows. Add `?hq` to the URL to keep maximum quality regardless (for previewing on a strong machine).
+- **Fallbacks:** poster frames show until the film is ready. `prefers-reduced-motion` gets a static stacked layout (CSS-driven, correct even before JavaScript runs); data-saver keeps the poster frames without loading the film.
+- **Elsewhere:** the About page opens with a shorter film (a slow latte pour); menu cards tilt under the pointer and settle into place as you scroll (CSS scroll-driven animations where supported).
+- **Footage** credits, and how to swap in your own clips of the shop, are in `public/story/CREDITS.md`.
 
 ### Money
 All amounts are **integer centavos** (`₱1.00 = 100`). Typed amounts are parsed from strings (`parsePesoToCents`), so floating-point errors can't occur. Change is calculated only from valid amounts that cover the total, so the UI never shows NaN or negative change.
@@ -159,7 +152,7 @@ src/
     admin/(panel)/     dashboard, orders, products, categories, inventory, reports, gallery, users, settings, account
     admin/(pos)/pos/   full-screen POS
     api/cart/quote/    live cart re-pricing
-  components/          cafe3d (3D scroll story), branding, navigation, menu, products, cart, checkout, orders, pos, receipt, dashboard, forms, charts, gallery, ui
+  components/          cafe-story (scroll-driven coffee story), branding, navigation, menu, products, cart, checkout, orders, pos, receipt, dashboard, forms, charts, gallery, ui
   db/                  Drizzle schema + connection (Postgres or local PGlite)
   lib/                 money, pricing, formatting, validation (shared client/server)
   server/              data access, order engine, reports, auth, storage, Server Actions
